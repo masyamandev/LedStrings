@@ -12,6 +12,7 @@
 #define COLORLENGTH MAXPIX/2
 #define FADE 256/COLORLENGTH
 #define RAINBOW_COLORS 10
+#define INITIAL_COLORS 8
 #define COLORS MAXPIX
 
 #define SUB_STEPS_BITS 8
@@ -19,6 +20,7 @@
 #define OFFSET_PRECISION uint16_t
 
 struct cRGB rainbowColors[RAINBOW_COLORS];
+struct cRGB initialColors[INITIAL_COLORS];
 struct cRGB colors[COLORS];
 struct cRGB led[MAXPIX];
 
@@ -62,7 +64,7 @@ void drawBetween(uint8_t i, struct cRGB oldColor, struct cRGB newColor) {
 }
 
 void randomizeColor(uint8_t i) {
-	colors[i] = rainbowColors[random() & 7];
+	colors[i] = initialColors[random() & (INITIAL_COLORS - 1)];
 }
 
 struct cRGB shade(struct cRGB color, uint8_t shade) {
@@ -73,25 +75,64 @@ struct cRGB shade(struct cRGB color, uint8_t shade) {
 	return shaded;
 }
 
+inline struct cRGB rgb(uint8_t r, uint8_t g, uint8_t b) {
+	struct cRGB shaded;
+	shaded.r = r;
+	shaded.g = g;
+	shaded.b = b;
+	return shaded;
+}
+
 int main(void)
 {
 
 	DDRB |= _BV(ws2812_pin);
 
 	PORT_BTN |= BTN_1 | BTN_2;
-		
+
+	// prescale timer to 1/1024th the clock rate
+	TCCR0 |= (1<<CS02) | (1<<CS00);
+
     //Rainbow colors
-    rainbowColors[0].r=255; rainbowColors[0].g=000; rainbowColors[0].b=000;//red
-    rainbowColors[1].r=255; rainbowColors[1].g=60;  rainbowColors[1].b=000;//orange
-    rainbowColors[2].r=200; rainbowColors[2].g=100; rainbowColors[2].b=000;//yellow
-    rainbowColors[3].r=000; rainbowColors[3].g=255; rainbowColors[3].b=000;//green
-    rainbowColors[4].r=000; rainbowColors[4].g=120; rainbowColors[4].b=120;//light blue (türkis)
-    rainbowColors[5].r=000; rainbowColors[5].g=000; rainbowColors[5].b=255;//blue
-    rainbowColors[6].r=80;  rainbowColors[6].g=000; rainbowColors[6].b=120;//violet
-//    rainbowColors[7].r=20;  rainbowColors[7].g=000; rainbowColors[7].b=30;
-    rainbowColors[7].r=40;  rainbowColors[7].g=40;  rainbowColors[7].b=40;
-    rainbowColors[8].r=000; rainbowColors[8].g=000; rainbowColors[8].b=000;
-    rainbowColors[9].r=000; rainbowColors[9].g=000; rainbowColors[9].b=000;
+	rainbowColors[0] = rgb(255, 0, 0);//red
+    rainbowColors[1] = rgb(255, 60, 0);//orange
+    rainbowColors[2] = rgb(200, 100, 0);//yellow
+    rainbowColors[3] = rgb(0, 255, 0);//green
+    rainbowColors[4] = rgb(0, 120, 120);//light blue (türkis)
+    rainbowColors[5] = rgb(0, 0, 255);//blue
+    rainbowColors[6] = rgb(80, 0, 120);//violet
+    rainbowColors[7] = rgb(40, 40, 40);
+    rainbowColors[8] = rgb(0, 0, 0);
+    rainbowColors[9] = rgb(0, 0, 0);
+
+    initialColors[0] = rgb(255, 0, 0);//red
+    initialColors[1] = rgb(255, 60, 0);//orange
+    initialColors[2] = rgb(200, 100, 0);//yellow
+    initialColors[3] = rgb(0, 255, 0);//green
+    initialColors[4] = rgb(0, 120, 120);//light blue (türkis)
+    initialColors[5] = rgb(0, 0, 255);//blue
+    initialColors[6] = rgb(80, 0, 120);//violet
+    initialColors[7] = rgb(220,20,60);//crimson
+
+//    initialColors[0] = rgb(255, 0, 0);//red
+//    initialColors[1] = rgb(220,20,60);//crimson
+//    initialColors[2] = rgb(0, 255, 0);//green
+//    initialColors[3] = rgb(173,255,47);//greenyellow
+//    initialColors[4] = rgb(0, 0, 255);//blue
+//    initialColors[5] = rgb(32,178,170);//lightseagreen
+//    initialColors[6] = rgb(255,215,0);//gold
+//    initialColors[7] = rgb(139,69,19);//saddlebrown
+
+//    initialColors[7] = rgb(139, 69, 19);//saddlebrown
+//    initialColors[8] = rgb(188, 143, 143);//rosybrown
+//    initialColors[9] = rgb(255,215,0);//gold
+//    initialColors[10] = rgb(220,20,60);//crimson
+//    initialColors[11] = rgb(128,0,0);//maroon
+//    initialColors[12] = rgb(75,0,130);//indigo
+//    initialColors[13] = rgb(173,255,47);//greenyellow
+//    initialColors[14] = rgb(107,142,35);//olivedrab
+//    initialColors[15] = rgb(255,228,181);//moccasin
+
 
 	uint8_t i = 0;
 
@@ -108,6 +149,13 @@ int main(void)
     speed = 16;
 
 	while (1) {
+
+		// wait for next frame, 50fps on 8mhz
+		while (TCNT0 < 156) {};
+		TCNT0 = 0;
+
+
+		// process buttons
 		uint8_t buttons = ~PIN_BTN;
 		uint8_t buttonsPressed = buttons & ~prevButtons;
 
@@ -124,6 +172,8 @@ int main(void)
 			direction = (direction + 1) & 3;
 		}
 
+
+		// calculate next frame
 		if (direction == 0) {
 			offset += speed;
 		} else if (direction == 2) {
@@ -137,6 +187,7 @@ int main(void)
 		c1 = offset & ((1 << SUB_STEPS_BITS) - 1);
 		c2 = (1 << SUB_STEPS_BITS) - c1;
 
+		// calculate leds depending on style
 		if (style == 0) {
 
 			// Running lights
@@ -211,8 +262,11 @@ int main(void)
 //			}
 		}
 
+//		led[0].r = blink;
+//		led[0].g = blink;
+//		led[0].b = blink;
+//		blink = ~blink;
 
-		_delay_ms(10);
 		ws2812_sendarray((uint8_t *) led, MAXPIX * 3);
 
 		prevButtons = buttons;
