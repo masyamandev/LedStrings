@@ -30,7 +30,7 @@ struct cRGB led[MAXPIX];
 #define BTN_1 	(1 << 5)
 #define BTN_2 	(1 << 6)
 
-#define STYLES 	3
+#define STYLES 	4
 
 
 
@@ -39,6 +39,7 @@ static OFFSET_PRECISION offsetLength = 0xFF;
 static OFFSET_PRECISION speed = 16;
 
 static uint8_t step;
+static uint8_t prevStep;
 static OFFSET_PRECISION c1, c2;
 
 static uint16_t randomSeed;
@@ -248,18 +249,39 @@ int main(void)
 			}
 
 		} else {
-//			uint8_t i = 0, j = offset;
-//			for (i = 0; i < MAXPIX; i++) {
-//				led[i] = rainbowColors[j];
-//				j++;
-//				if (j >= RAINBOW_COLORS) {
-//					j = 0;
-//				}
-//			}
-//			offset++;
-//			if (offset >= RAINBOW_COLORS) {
-//				offset = 0;
-//			}
+
+			// Randomized
+		    speed = 8;
+			offsetLength = 2 << SUB_STEPS_BITS;
+
+			if (step != prevStep) {
+				for (i = 0; i < COLORS >> 1; i++) {
+					colors[i] = colors[i + (COLORS >> 1)];
+				}
+				for (i = COLORS >> 1; i < MAXPIX; i++) {
+					if (direction) {
+						if ((i & 1) == (step & 1)) {
+							randomizeColor(i);
+						} else {
+//							colors[i] = rgb(0, 0, 0);
+						}
+					} else {
+						randomizeColor(i);
+					}
+				}
+			}
+			uint8_t col = 0;
+			for (i = 0; i < MAXPIX; i++) {
+				col++;
+				if (col >= COLORS >> 1) {
+					col = 0;
+				}
+				if (direction) {
+					drawBetween(i, colors[col + (COLORS >> 1)], colors[col]);
+				} else {
+					drawBetween(i, colors[col], colors[col + (COLORS >> 1)]);
+				}
+			}
 		}
 
 //		led[0].r = blink;
@@ -270,5 +292,6 @@ int main(void)
 		ws2812_sendarray((uint8_t *) led, MAXPIX * 3);
 
 		prevButtons = buttons;
+		prevStep = step;
 	}
 }
