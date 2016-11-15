@@ -100,7 +100,7 @@ int main(void)
 	}
 
     uint8_t style = 0;
-    uint8_t onPause = 0;
+    uint8_t direction = 0;
     uint8_t prevButtons = 0;
 
     offset = 0;
@@ -118,18 +118,18 @@ int main(void)
 			}
 			offset = 0;
 			offsetLength = 0xFF;
+			direction = 0;
 		}
 		if (buttonsPressed & BTN_2) {
-			onPause = !onPause;
+			direction = (direction + 1) & 3;
 		}
 
-		if (onPause) {
-			_delay_ms(10);
-			prevButtons = buttons;
-			continue;
+		if (direction == 0) {
+			offset += speed;
+		} else if (direction == 2) {
+			offset += offsetLength - speed;
 		}
 
-		offset += speed;
 		while (offset >= offsetLength) {
 			offset -= offsetLength;
 		}
@@ -157,6 +157,10 @@ int main(void)
 				drawBetween(MAXPIX - 1 - i, shade(colors[col], shades[j]), shade(colors[col], shades[j + 1]));
 			}
 			uint8_t nextCol = (col + 1) & 7;
+			if (direction) {
+				// reverse
+				col = (nextCol + 1) & 7;
+			}
 			do {
 				randomizeColor(nextCol);
 			} while (colors[col].r == colors[nextCol].r && colors[col].g == colors[nextCol].g && colors[col].b == colors[nextCol].b);
