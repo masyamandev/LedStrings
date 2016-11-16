@@ -11,7 +11,7 @@
 #define MAXPIX 50
 #define COLORLENGTH MAXPIX/2
 #define FADE 256/COLORLENGTH
-#define RAINBOW_COLORS 10
+#define RAINBOW_COLORS 12
 #define INITIAL_COLORS 8
 #define COLORS MAXPIX
 
@@ -42,10 +42,18 @@ static uint8_t step;
 static uint8_t prevStep;
 static OFFSET_PRECISION c1, c2;
 
-static uint16_t randomSeed;
+
+static uint8_t shades[] = {32, 255, 128, 64, 32, 16, 8, 0, 0};
+
+static uint32_t randomSeed;
 
 uint8_t random() {
-	randomSeed = randomSeed * 37 + 73 * (randomSeed >> 12) + 997;
+//	randomSeed = randomSeed * 37 + 73 * (randomSeed >> 12) + 997;
+//	return randomSeed >> 4;
+	randomSeed ^= randomSeed>>11;
+	randomSeed ^= randomSeed<<7 & 0x9D2C5680;
+	randomSeed ^= randomSeed<<15 & 0xEFC60000;
+	randomSeed ^= randomSeed>>18;
 	return randomSeed;
 }
 
@@ -65,7 +73,21 @@ void drawBetween(uint8_t i, struct cRGB oldColor, struct cRGB newColor) {
 }
 
 void randomizeColor(uint8_t i) {
-	colors[i] = initialColors[random() & (INITIAL_COLORS - 1)];
+	uint8_t color = random() & (INITIAL_COLORS - 1);
+	if (color < INITIAL_COLORS - 1) {
+		colors[i] = initialColors[color];
+	} else {
+		uint8_t brightness;
+		do {
+			colors[i].r = random() & 0xFF;
+			colors[i].g = random() & 0xFF;
+			colors[i].b = random() & 0xFF;
+			brightness = (colors[i].r >> 2) + (colors[i].g >> 2) + (colors[i].b >> 2);
+			colors[i].r += ((colors[i].r >> 2) * 3 - brightness) << 1;
+			colors[i].g += ((colors[i].g >> 2) * 3 - brightness) << 1;
+			colors[i].b += ((colors[i].b >> 2) * 3 - brightness) << 1;
+		} while (brightness < 64 || brightness >= 128);
+	}
 }
 
 struct cRGB shade(struct cRGB color, uint8_t shade) {
@@ -94,6 +116,11 @@ int main(void)
 	// prescale timer to 1/1024th the clock rate
 	TCCR0 |= (1<<CS02) | (1<<CS00);
 
+	// ADC
+	ADMUX |= (1<<REFS0) | (0<<ADLAR);
+	ADCSRA |= (1<<ADEN);
+
+
     //Rainbow colors
 	rainbowColors[0] = rgb(255, 0, 0);//red
     rainbowColors[1] = rgb(255, 60, 0);//orange
@@ -105,6 +132,8 @@ int main(void)
     rainbowColors[7] = rgb(40, 40, 40);
     rainbowColors[8] = rgb(0, 0, 0);
     rainbowColors[9] = rgb(0, 0, 0);
+    rainbowColors[10] = rgb(0, 0, 0);
+    rainbowColors[11] = rgb(0, 0, 0);
 
     initialColors[0] = rgb(255, 0, 0);//red
     initialColors[1] = rgb(255, 60, 0);//orange
@@ -113,7 +142,7 @@ int main(void)
     initialColors[4] = rgb(0, 120, 120);//light blue (türkis)
     initialColors[5] = rgb(0, 0, 255);//blue
     initialColors[6] = rgb(80, 0, 120);//violet
-    initialColors[7] = rgb(220,20,60);//crimson
+//    initialColors[7] = rgb(220,20,60);//crimson
 
 //    initialColors[0] = rgb(255, 0, 0);//red
 //    initialColors[1] = rgb(220,20,60);//crimson
@@ -149,10 +178,18 @@ int main(void)
     offsetLength = 0xFF;
     speed = 16;
 
+    uint16_t speedADC = 0;
+
 	while (1) {
 
 		// wait for next frame, 50fps on 8mhz
-		while (TCNT0 < 156) {};
+		do {
+			ADCSRA |= (1<<ADSC);
+			while (ADCSRA & (1<<ADSC)) {};
+			speedADC -= speedADC >> 6;
+			speedADC += ADC;
+			//randomSeed ^= ADC & 7;
+		} while (TCNT0 < 156);
 		TCNT0 = 0;
 
 
@@ -176,7 +213,7 @@ int main(void)
 
 		// calculate next frame
 		if (direction == 0) {
-			offset += speed;
+			offset += ((speedADC >> 8) * speed >> 5) + 1;
 		} else if (direction == 2) {
 			offset += offsetLength - speed;
 		}
@@ -194,8 +231,6 @@ int main(void)
 			// Running lights
 		    speed = 16;
 			offsetLength = 64 << SUB_STEPS_BITS;
-
-			uint8_t shades[] = {32, 255, 128, 64, 32, 16, 8, 0, 0};
 
 			uint8_t col, j;
 			for (i = 0; i < MAXPIX; i++) {
@@ -215,7 +250,9 @@ int main(void)
 			}
 			do {
 				randomizeColor(nextCol);
-			} while (colors[col].r == colors[nextCol].r && colors[col].g == colors[nextCol].g && colors[col].b == colors[nextCol].b);
+			} while ((colors[col].r & 0x80) == (colors[nextCol].r & 0x80) &&
+					(colors[col].g & 0x80) == (colors[nextCol].g & 0x80) &&
+					(colors[col].b & 0x80) == (colors[nextCol].b & 0x80));
 		} else if (style == 1) {
 
 			// Rainbow
@@ -259,13 +296,7 @@ int main(void)
 					colors[i] = colors[i + (COLORS >> 1)];
 				}
 				for (i = COLORS >> 1; i < MAXPIX; i++) {
-					if (direction) {
-						if ((i & 1) == (step & 1)) {
-							randomizeColor(i);
-						} else {
-//							colors[i] = rgb(0, 0, 0);
-						}
-					} else {
+					if (direction || (i & 1) == (step & 1)) {
 						randomizeColor(i);
 					}
 				}
