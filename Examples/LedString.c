@@ -50,6 +50,9 @@ static uint32_t randomSeed;
 uint8_t random() {
 //	randomSeed = randomSeed * 37 + 73 * (randomSeed >> 12) + 997;
 //	return randomSeed >> 4;
+	if (randomSeed == 0) {
+		randomSeed = 997;
+	}
 	randomSeed ^= randomSeed>>11;
 	randomSeed ^= randomSeed<<7 & 0x9D2C5680;
 	randomSeed ^= randomSeed<<15 & 0xEFC60000;
@@ -188,7 +191,6 @@ int main(void)
 			while (ADCSRA & (1<<ADSC)) {};
 			speedADC -= speedADC >> 6;
 			speedADC += ADC;
-			//randomSeed ^= ADC & 7;
 		} while (TCNT0 < 156);
 		TCNT0 = 0;
 
@@ -215,7 +217,7 @@ int main(void)
 		if (direction == 0) {
 			offset += ((speedADC >> 8) * speed >> 5) + 1;
 		} else if (direction == 2) {
-			offset += offsetLength - speed;
+			offset += offsetLength - (((speedADC >> 8) * speed >> 5) + 1);
 		}
 
 		while (offset >= offsetLength) {
@@ -273,11 +275,11 @@ int main(void)
 
 			// Same color
 		    speed = 1;
-			offsetLength = 8 << SUB_STEPS_BITS;
+			offsetLength = 7 << SUB_STEPS_BITS;
 
 			uint8_t next = step + 1;
 
-			if (next >= 8) {
+			if (next >= 7) {
 				next = 0;
 			}
 
@@ -296,7 +298,7 @@ int main(void)
 					colors[i] = colors[i + (COLORS >> 1)];
 				}
 				for (i = COLORS >> 1; i < MAXPIX; i++) {
-					if (direction || (i & 1) == (step & 1)) {
+					if (direction == 2 || (i & 1) == (step & 1)) {
 						randomizeColor(i);
 					}
 				}
@@ -307,7 +309,7 @@ int main(void)
 				if (col >= COLORS >> 1) {
 					col = 0;
 				}
-				if (direction) {
+				if (direction & 2) {
 					drawBetween(i, colors[col + (COLORS >> 1)], colors[col]);
 				} else {
 					drawBetween(i, colors[col], colors[col + (COLORS >> 1)]);
