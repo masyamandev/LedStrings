@@ -93,7 +93,7 @@ void randomizeColor(uint8_t i) {
 	}
 }
 
-struct cRGB shade(struct cRGB color, uint8_t shade) {
+inline struct cRGB shade(struct cRGB color, uint8_t shade) {
 	struct cRGB shaded;
 	shaded.r = (uint16_t) color.r * shade >> 8;
 	shaded.g = (uint16_t) color.g * shade >> 8;
@@ -268,7 +268,7 @@ int main(void)
 					step = 0;
 				}
 
-				drawBetween(MAXPIX - 1 - i, rainbowColors[prev], rainbowColors[step]);
+				drawBetween(MAXPIX - 1 - i, shade(rainbowColors[prev], 128), shade(rainbowColors[step], 128));
 			}
 
 		} else if (style == 2) {
@@ -284,7 +284,7 @@ int main(void)
 			}
 
 			for (i = 0; i < MAXPIX; i++) {
-				drawBetween(i, rainbowColors[step], rainbowColors[next]);
+				drawBetween(i, shade(rainbowColors[step], 96), shade(rainbowColors[next], 96));
 			}
 
 		} else {
@@ -300,6 +300,7 @@ int main(void)
 				for (i = COLORS >> 1; i < MAXPIX; i++) {
 					if (direction == 2 || (i & 1) == (step & 1)) {
 						randomizeColor(i);
+//						colors[i] = shade(colors[i], 128);
 					}
 				}
 			}
@@ -310,9 +311,9 @@ int main(void)
 					col = 0;
 				}
 				if (direction & 2) {
-					drawBetween(i, colors[col + (COLORS >> 1)], colors[col]);
+					drawBetween(i, shade(colors[col + (COLORS >> 1)], 128), shade(colors[col], 128));
 				} else {
-					drawBetween(i, colors[col], colors[col + (COLORS >> 1)]);
+					drawBetween(i, shade(colors[col], 128), shade(colors[col + (COLORS >> 1)], 128));
 				}
 			}
 		}
