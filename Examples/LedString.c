@@ -8,9 +8,8 @@
 #include <avr/interrupt.h>
 #include "light_ws2812.h"
 
-#define MAXPIX 50
+#define MAXPIX 100
 #define COLORLENGTH MAXPIX/2
-#define FADE 256/COLORLENGTH
 #define RAINBOW_COLORS 12
 #define INITIAL_COLORS 8
 #define COLORS MAXPIX
@@ -232,23 +231,23 @@ int main(void)
 
 			// Running lights
 		    speed = 16;
-			offsetLength = 64 << SUB_STEPS_BITS;
+			offsetLength = 128 << SUB_STEPS_BITS;
 
 			uint8_t col, j;
 			for (i = 0; i < MAXPIX; i++) {
 				j = (step + i) & 7;
 				col = (step + i) >> 3;
 				col++;
-				if (col >= (64 >> 3)) {
-					col -= (64 >> 3);
+				if (col >= (128 >> 3)) {
+					col -= (128 >> 3);
 				}
 
 				drawBetween(MAXPIX - 1 - i, shade(colors[col], shades[j]), shade(colors[col], shades[j + 1]));
 			}
-			uint8_t nextCol = (col + 1) & 7;
+			uint8_t nextCol = (col + 1) & 15;
 			if (direction) {
 				// reverse
-				col = (nextCol + 1) & 7;
+				col = (nextCol + 1) & 15;
 			}
 			do {
 				randomizeColor(nextCol);
